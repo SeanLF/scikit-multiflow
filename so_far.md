@@ -17,3 +17,9 @@ I then modified the voting classifier to use a different voting scheme (by summi
     - Allows for either online learning (with a window size of 1), or batch learning to speed things up using overlapping chunks.
 - Modified FHDDM to detect drifts by using a sliding window of weighted prediction confidence. This reduces the reliance upon immediate knowledge of the ground truth after predictions.
 - When drifts are detected, all models are dropped, and rebuilt using the last 100 tuples.
+
+## Experiments
+- Examine how sliding windows perform against tumbling windows and against sliding tumbling windows
+- Compare different voting ensemble techniques against one another and against single classifiers and against other ensemble methods
+- See how the modified concept drift detector performs with/without sliding tumbling windows, and/or when playing with the ensemble classifier reset logic
+- Evaluate the performance, stream velocity, accuracy against other methods
