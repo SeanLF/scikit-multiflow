@@ -1026,3 +1026,97 @@ class InstanceWindow(BaseObject):
                ' - n_samples: ' + str(self.n_samples) + \
                ' - max_size: ' + str(self.max_size) + \
                ' - dtype: ' + str(self.dtype)
+
+class FastInstanceWindow(BaseObject):
+    def __init__(self, max_size=1000, dtype=float):
+        super().__init__()
+        # default values
+        self.dtype = dtype
+        self.X = None
+        self.y = None
+        self.max_size = max_size
+        self.n_samples = 0
+
+    def add_elements(self, X, y):
+        """ add_elements 
+        
+        Adds samples to the instance window.
+        
+        X: numpy.ndarray of shape (1, 1) 
+            Feature matrix of 1 or more samples.
+        
+        y: numpy.ndarray of shape (1, 1) 
+            Labels matrix of 1 or more samples.
+        
+        TypeError: If the buffer type is altered by the user, or isn't correctly 
+        initialized, a TypeError may be raised.
+        
+        """
+
+        self.n_samples += len(X)
+
+        if self.X is None:
+            self.X = X
+            self.y = y
+        else:
+            # delete first before concatenating
+            if self.n_samples > self.max_size:
+                self.delete_element(num=self.n_samples-self.max_size)
+
+            self.X = np.concatenate((self.X, X), axis=0)
+            self.y = np.concatenate((self.y, y), axis=0)
+
+    def delete_element(self, num=1):
+        """ delete_element
+        
+        Delete the oldest num element from the sample window.
+        
+        """
+        self.n_samples -= num
+        self.X = self.X[num:]
+        self.y = self.y[num:]
+
+    def get_attributes_matrix(self):
+        return self.X
+
+    def get_targets_matrix(self):
+        return self.y
+
+    def at_index(self, index):
+        """ at_index
+        
+        Returns the complete sample and index = index.
+        
+        Parameters
+        ----------
+        index: int
+            An index from the InstanceWindow buffer.
+        
+        Returns
+        -------
+        tuple
+            A tuple containing both the attributes and the targets from sample 
+            indexed of index.
+        
+        """
+        return self.X[index], self.y[index]
+
+    @property
+    def _num_samples(self):
+        return self.n_samples
+
+    def get_class_type(self):
+        return 'data_structure'
+
+    def get_info(self):
+        return 'InstanceWindow: n_samples: ' + str(self.n_samples) + \
+               ' - max_size: ' + str(self.max_size) + \
+               ' - dtype: ' + str(self.dtype)
+
+
+if __name__ == '__main__':
+    text = '/asddfdsd/'
+    aux = text.split("/")
+    print(aux)
+
+

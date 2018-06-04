@@ -4,6 +4,7 @@ import warnings
 from timeit import default_timer as timer
 from skmultiflow.evaluation.base_evaluator import StreamEvaluator
 from skmultiflow.utils import constants
+import random
 
 
 class EvaluatePrequential(StreamEvaluator):
@@ -230,6 +231,14 @@ class EvaluatePrequential(StreamEvaluator):
         logging.info('Prequential Evaluation')
         logging.info('Evaluating %s target(s).', str(self.stream.n_targets))
 
+        can_run_concept_drift_detection = False
+        drift_warning = 0
+        
+        try:
+            can_run_concept_drift_detection = self.model[0].first_fit
+        except Exception:
+            pass
+
         n_samples = self.stream.n_remaining_samples()
         if n_samples == -1 or n_samples > self.max_samples:
             n_samples = self.max_samples
@@ -279,6 +288,22 @@ class EvaluatePrequential(StreamEvaluator):
                                 self.mean_eval_measurements[j].add_result(y[i], prediction[j][i])
                                 self.current_eval_measurements[j].add_result(y[i], prediction[j][i])
                     self._check_progress(logging, n_samples)
+
+                    # Test for concept drift
+                    # drift=False
+                    if not first_run and can_run_concept_drift_detection and self.model[0].first_fit:
+                        print("\t@ instance: ", self.global_sample_count, end='')
+                        if self.global_sample_count - drift_warning < 1500:
+                            self.model[0].reset()
+                            print('\treset')
+                        else:
+                            print('') # line break
+                        self.model[0].partial_fit(self.model[0].window.get_attributes_matrix(),
+                                                    self.model[0].window.get_targets_matrix().ravel())
+                        drift_warning = self.global_sample_count
+                        # drift=True
+
+                    # y = y if (random.uniform(0,1) > 0.5) or drift else prediction[0]
 
                     # Train
                     if first_run:
