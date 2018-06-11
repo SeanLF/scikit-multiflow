@@ -21,5 +21,9 @@ I then modified the voting classifier to use a different voting scheme (by summi
 ## Experiments
 - Examine how sliding windows perform against tumbling windows and against sliding tumbling windows
 - Compare different voting ensemble techniques against one another and against single classifiers and against other ensemble methods
-- See how the modified concept drift detector performs with/without sliding tumbling windows, and/or when playing with the ensemble classifier reset logic
+- See how the modified concept drift detector performs with/without sliding tumbling windows, and/or when playing with the ensemble classifier reset logic, and finding the right balance of ground truth that can be omitted versus using predicted values as the ground truth
 - Evaluate the performance, stream velocity, accuracy against other methods
+- Build summarizing classifiers using batches and give them a slightly higher weight, or determine if there is a threshold
+
+## Questions
+- Is using someone elses structure for the litterature review considered plagiarism?
