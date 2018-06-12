@@ -12,13 +12,15 @@ Mlxtend has a voting classifier that I used.
 I then modified the voting classifier to use a different voting scheme (by summing class probabilities) and so that it can function online, with batches or sliding windows and use a drift detector on each classifier in the ensemble.
 
 ## Ideas put forward
-- Using a voting ensemble that requires that its classifiers submit class probabilities, in order to sum them and select the class with the highest average.
-- Using a sliding window from the point of view of the stream, and a tumbling window from the point of view of the ensemble classifiers. (turns out to be same method proposed by Sarah D'Ettore in FG-CDCStream but she uses it only for drift detection)
-    - Allows for either online learning (with a window size of 1), or batch learning to speed things up using overlapping chunks.
-- Modified FHDDM to detect drifts by using a sliding window of weighted prediction confidence. This reduces the reliance upon immediate knowledge of the ground truth after predictions.
-- When drifts are detected, all models are dropped, and rebuilt using the last 100 tuples.
+- [x] Using a voting ensemble that requires that its classifiers submit class probabilities, in order to sum them and select the class with the highest average.
+- [x] Using a sliding window from the point of view of the stream, and a tumbling window from the point of view of the ensemble classifiers. (turns out to be same method proposed by Sarah D'Ettore in FG-CDCStream but she uses it only for drift detection)
+    - [x] Allows for either online learning (with a window size of 1), or a frankenstein batch learning to speed things up using overlapping chunks.
+- [x] Modified FHDDM to detect drifts by using a sliding window of weighted prediction confidence. This reduces the reliance upon immediate knowledge of the ground truth after predictions.
+- [x] When drifts are detected, all models are dropped, and rebuilt using the last 100 tuples.
+- [ ] When drifts are detected, a subset of models are dropped, and rebuilt using the last 100 tuples.
+- [ ] When drifts are detected, query the oracle, and create a temporary replacement classifier that learns in parallel in case there is a drift according to the oracle. Could also skip tuples?
 
-## Experiments
+## Experiments to perform
 - Examine how sliding windows perform against tumbling windows and against sliding tumbling windows
 - Compare different voting ensemble techniques against one another and against single classifiers and against other ensemble methods
 - See how the modified concept drift detector performs with/without sliding tumbling windows, and/or when playing with the ensemble classifier reset logic, and finding the right balance of ground truth that can be omitted versus using predicted values as the ground truth
