@@ -104,6 +104,8 @@ class EnsembleVoteClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
         self.proba_clfs = []
         self.non_proba_clfs = []
 
+        self.reset_clfs = [False]*len(clfs)
+
         for idx, clf in enumerate(self.clfs):
             if callable(getattr(clf, "predict_proba", None)):
                 self.proba_clfs.append(idx)
@@ -148,21 +150,8 @@ class EnsembleVoteClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
                 print("Fitting %d classifiers..." % (len(self.clfs)))
 
             for clf in self.clfs:
+                self._first_fit_one_clf(clf, X, y)
 
-                if self.verbose > 0:
-                    i = self.clfs.index(clf) + 1
-                    print("Fitting clf%d: %s (%d/%d)" %
-                          (i, _name_estimators((clf,))[0][0], i,
-                           len(self.clfs)))
-
-                if self.verbose > 2:
-                    if hasattr(clf, 'verbose'):
-                        clf.set_params(verbose=self.verbose - 2)
-
-                if self.verbose > 1:
-                    print(_name_estimators((clf,))[0][1])
-
-                clf.partial_fit(X, self.le_.transform(y), classes=self.classes_)
             self.first_fit=False
         else:
             # First fit is only true on the first function call
@@ -281,9 +270,24 @@ class EnsembleVoteClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
             return out
 
     def reset(self):
-        self.clfs = [clf.__class__(**ParameterGrid(clf.get_params()).param_grid[0]) for clf in self.clfs]
-        for d in self.drift_detectors:
-            d.reset()
+        # each classifier has a 70% chance of being reset
+        for idx, clf in enumerate(self.clfs):
+            will_reset = np.random.choice([False, True], p=[0.3, 0.7])
+            self.reset_clfs[idx] = will_reset
+            if will_reset:
+                self.clfs[idx] = clf.__class__(**ParameterGrid(clf.get_params()).param_grid[0])
+                self.drift_detectors[idx].reset()
+        # self.clfs = [clf.__class__(**ParameterGrid(clf.get_params()).param_grid[0]) for clf in self.clfs] # hack
+        # for d in self.drift_detectors:
+        #     d.reset()
+
+    def refit(self):
+        X, y = self.window.get_attributes_matrix(), self.window.get_targets_matrix().ravel()
+        for idx, clf in enumerate(self.clfs):
+            if self.reset_clfs[idx]:
+                self._first_fit_one_clf(clf, X, y)
+                self.reset_clfs[idx] = False
+        self.partial_fit(X, y, classes=self.classes_)
 
     def _predict(self, X):
         """Collect results from clf.predict calls."""
@@ -297,3 +301,19 @@ class EnsembleVoteClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
     def _predict_probas(self, X):
         """Collect results from clf.predict_proba calls."""
         return np.asarray([clf.predict_proba(X) for clf in self.clfs])
+
+    def _first_fit_one_clf(self, clf, X, y):
+        if self.verbose > 0:
+            i = self.clfs.index(clf) + 1
+            print("Fitting clf%d: %s (%d/%d)" %
+                    (i, _name_estimators((clf,))[0][0], i,
+                    len(self.clfs)))
+
+        if self.verbose > 2:
+            if hasattr(clf, 'verbose'):
+                clf.set_params(verbose=self.verbose - 2)
+
+        if self.verbose > 1:
+            print(_name_estimators((clf,))[0][1])
+
+        clf.partial_fit(X, self.le_.transform(y), classes=self.classes_)

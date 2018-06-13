@@ -49,7 +49,7 @@ def demo(filepath=None, noise_percentage=0.10, batch_size=1, show_plot=False):
     # pipe = Pipeline([('vc', eclf1)])
 
     # Setup the evaluator
-    evaluator = EvaluatePrequential(show_plot=False,pretrain_size=1000, max_samples=100000, batch_size=batch_size)
+    evaluator = EvaluatePrequential(show_plot=show_plot,pretrain_size=1000, max_samples=100000, batch_size=batch_size)
 
     # Evaluate
     evaluator.evaluate(stream=stream, model=ensemble)
@@ -84,4 +84,4 @@ if __name__ == '__main__':
     #     print(file)
     #     demo(file)
 
-    demo(batch_size=50, show_plot=True)
+    demo(batch_size=3, show_plot=False)
