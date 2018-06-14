@@ -83,7 +83,7 @@ class EnsembleVoteClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
     >>>
     """
     def __init__(self, clfs, voting='hard',
-                 weights=None, verbose=0, classes=None, window_slide=1):
+                 weights=None, verbose=0, classes=None, window_slide=1, reset_all_clfs=True):
 
         self.clfs = clfs
         self.named_clfs = {key: value for key, value in _name_estimators(clfs)}
@@ -105,6 +105,7 @@ class EnsembleVoteClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
         self.non_proba_clfs = []
 
         self.reset_clfs = [False]*len(clfs)
+        self.reset_all_clfs = reset_all_clfs
 
         for idx, clf in enumerate(self.clfs):
             if callable(getattr(clf, "predict_proba", None)):
@@ -270,24 +271,28 @@ class EnsembleVoteClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
             return out
 
     def reset(self):
-        # each classifier has a 70% chance of being reset
-        for idx, clf in enumerate(self.clfs):
-            will_reset = np.random.choice([False, True], p=[0.3, 0.7])
-            self.reset_clfs[idx] = will_reset
-            if will_reset:
-                self.clfs[idx] = clf.__class__(**ParameterGrid(clf.get_params()).param_grid[0])
-                self.drift_detectors[idx].reset()
-        # self.clfs = [clf.__class__(**ParameterGrid(clf.get_params()).param_grid[0]) for clf in self.clfs] # hack
-        # for d in self.drift_detectors:
-        #     d.reset()
+        if self.reset_all_clfs:
+            self.clfs = [clf.__class__(**ParameterGrid(clf.get_params()).param_grid[0]) for clf in self.clfs] # hack
+            for d in self.drift_detectors:
+                d.reset()
+        else:
+            # each classifier has a 70% chance of being reset
+            for idx, clf in enumerate(self.clfs):
+                will_reset = np.random.choice([False, True], p=[0.3, 0.7])
+                self.reset_clfs[idx] = will_reset
+                if will_reset:
+                    self.clfs[idx] = clf.__class__(**ParameterGrid(clf.get_params()).param_grid[0])
+                    self.drift_detectors[idx].reset()
 
     def refit(self):
         X, y = self.window.get_attributes_matrix(), self.window.get_targets_matrix().ravel()
-        for idx, clf in enumerate(self.clfs):
-            if self.reset_clfs[idx]:
-                self._first_fit_one_clf(clf, X, y)
-                self.reset_clfs[idx] = False
-        self.partial_fit(X, y, classes=self.classes_)
+        if self.reset_all_clfs:
+            self.partial_fit(X, y, classes=self.classes_)
+        else:
+            for idx, clf in enumerate(self.clfs):
+                if self.reset_clfs[idx]:
+                    self._first_fit_one_clf(clf, X, y)
+                    self.reset_clfs[idx] = False
 
     def _predict(self, X):
         """Collect results from clf.predict calls."""
