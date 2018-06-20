@@ -19,14 +19,20 @@ I then modified the voting classifier to use a different voting scheme (by summi
 - [x] When drifts are detected, all models are dropped, and rebuilt using the last 100 tuples.
 - [x] When drifts are detected, a subset of models are dropped, and rebuilt using the last 100 tuples. (current implementation: each classifier in the voting ensemble has a 70% chance of being reset)
 - [ ] When drifts are detected, query the oracle, and create a temporary replacement classifier that learns in parallel in case there is a drift according to the oracle. Could also skip tuples?
+- [ ] Build summarizing classifiers using batches and give them a slightly higher weight
 
 ## Experiments to perform
 - Examine how sliding windows perform against tumbling windows and against sliding tumbling windows
-- Compare different voting ensemble techniques against one another and against single classifiers and against other ensemble methods
+- The size of the window or batch (w) will have an impact on the results; we probably need some experiments about that.
+- Compare different voting ensemble strategies against one another and against single classifiers and against other ensemble methods. Compare outcomes
 - See how the modified concept drift detector performs with/without sliding tumbling windows, and/or when playing with the ensemble classifier reset logic, and finding the right balance of ground truth that can be omitted versus using predicted values as the ground truth
 - Evaluate the performance, stream velocity, accuracy against other methods
-- Determine if the sliding tumbling window can outperform in speed and accuracy versus simply using sliding windows
-- Build summarizing classifiers using batches and give them a slightly higher weight, or determine if there is a threshold
+- Determine if the summarising classifiers improve performance, and determine when best to use it over the normal voting classifiers.
+- It is good to compare to blind adaptation, i.e. a simple model reset at every x instances.
+- Compare to OzaBoost and OzaBag.
 
 ## Questions
 - Is using someone elses structure/organization for the litterature review considered plagiarism?
+
+## Reminders for writing
+- Sarah also uses some voting to decide on whether there is a warning/drift, but it is not clearly stated in her work. It would be good to formalize this in your thesis (Equations).
