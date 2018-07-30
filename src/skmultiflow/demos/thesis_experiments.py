@@ -1,15 +1,15 @@
 __author__ = 'Sean Floyd'
 
-from skmultiflow.data.generators.waveform_generator import WaveformGenerator
-from skmultiflow.data.generators.sea_generator import SEAGenerator
+from skmultiflow.data.waveform_generator import WaveformGenerator
+from skmultiflow.data.sea_generator import SEAGenerator
 from skmultiflow.data.file_stream import FileStream
 
 from skmultiflow.core.pipeline import Pipeline
 from skmultiflow.evaluation.evaluate_prequential import EvaluatePrequential
 
 from sklearn.naive_bayes import GaussianNB, BernoulliNB, MultinomialNB
-from skmultiflow.classification.meta.oza_bagging import OzaBagging
-from skmultiflow.classification.scikit_learn.voting_classifier import EnsembleVoteClassifier
+from skmultiflow.meta.oza_bagging import OzaBagging
+from skmultiflow.scikit_learn.voting_classifier import EnsembleVoteClassifier
 from sklearn import linear_model
 
 import numpy as np
