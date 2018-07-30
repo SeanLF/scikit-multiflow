@@ -113,8 +113,11 @@ def thesis_experiment(window_type=Window.SLIDING_TUMBLING, window_size=0, drift_
         stream = SEAGenerator(noise_percentage=noise_percentage)
         demo(stream, prepare_for_use(stream, False), batch_size=window_size)
     
-    # for Waveform generator
+    # for Waveform generator (with and without noise)
     stream = WaveformGenerator(has_noise=True)
+    demo(stream, prepare_for_use(stream, False), batch_size=window_size)
+
+    stream = WaveformGenerator(has_noise=False)
     demo(stream, prepare_for_use(stream, False), batch_size=window_size)
 
 def prepare_for_use(stream, file_stream):
@@ -123,7 +126,7 @@ def prepare_for_use(stream, file_stream):
         stream.get_target_values() if file_stream else stream.target_values)
 
 ## Examine how sliding windows perform against tumbling windows and against sliding tumbling windows
-## See how the modified concept drift detector performs with/without sliding tumbling windows
+## See how the modified concept drift detector performs depending on window type
 thesis_experiment(window_type=Window.SLIDING)
 thesis_experiment(window_type=Window.TUMBLING)
 thesis_experiment(window_type=Window.SLIDING_TUMBLING)
@@ -144,6 +147,7 @@ for percentage in range(0.0, 1.0, 0.1):
 
 ## See how the ensemble classifier reset logic affects the results
 # It is good to compare to blind adaptation, i.e. a simple model reset at every x instances.
+thesis_experiment(drift_reset=DriftReset.NONE)
 thesis_experiment(drift_reset=DriftReset.BLIND_RESET)
 thesis_experiment(drift_reset=DriftReset.RESET_ALL)
 thesis_experiment(drift_reset=DriftReset.PARTIAL_RESET)
