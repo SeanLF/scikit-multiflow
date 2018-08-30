@@ -292,13 +292,11 @@ class EvaluatePrequential(StreamEvaluator):
                     # Test for concept drift
                     # drift=False
                     if not first_run and can_run_concept_drift_detection and self.model[0].first_fit:
-                        print("\t@ instance: ", self.global_sample_count, end='')
+                        # logging.info("\t@ instance: %s", self.global_sample_count)
                         if self.global_sample_count - drift_warning < 1500:
                             self.model[0].reset()
                             self.model[0].refit()
-                            print('\treset')
-                        else:
-                            print('') # line break
+                            # logging.info("\t\tReset")
                         # self.model[0].partial_fit(self.model[0].window.get_attributes_matrix(),
                                                     # self.model[0].window.get_targets_matrix().ravel())
                         drift_warning = self.global_sample_count

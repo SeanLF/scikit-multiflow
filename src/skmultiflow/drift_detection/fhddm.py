@@ -12,7 +12,7 @@ URL: https://link.springer.com/chapter/10.1007/978-3-319-46227-1_7
 
 import math
 from skmultiflow.drift_detection.detector import SuperDetector
-from skmultiflow.core.utils.data_structures import FastBuffer
+from skmultiflow.utils.data_structures import FastBuffer
 
 class FHDDM(SuperDetector):
     """The Fast Hoeffding Drift Detection Method (FHDDM) class."""

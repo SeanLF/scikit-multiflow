@@ -17,9 +17,11 @@ from sklearn.exceptions import NotFittedError
 from mlxtend.externals.name_estimators import _name_estimators
 from mlxtend.externals import six
 import numpy as np
-from skmultiflow.core.utils.data_structures import FastInstanceWindow
+from skmultiflow.utils.data_structures import FastInstanceWindow
 from skmultiflow.drift_detection.fhddm import FHDDM
 from sklearn.model_selection import ParameterGrid
+
+from skmultiflow.options import Classifier, Window, Voting, DriftReset
 
 
 class EnsembleVoteClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
@@ -82,7 +84,7 @@ class EnsembleVoteClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
     [1 1 1 2 2 2]
     >>>
     """
-    def __init__(self, clfs, voting='hard',
+    def __init__(self, clfs, voting=Voting('hard'), window_type=Window(3),
                  weights=None, verbose=0, classes=None, window_slide=1, reset_all_clfs=True):
 
         self.clfs = clfs
@@ -91,8 +93,10 @@ class EnsembleVoteClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
         self.weights = weights
         self.verbose = verbose
         self.first_fit = True
+        self.window_type = window_type
         self.window_slide = window_slide
-        self.window = FastInstanceWindow(max_size=len(clfs)*self.window_slide)
+        modif = len(clfs) if self.window_type == Window.SLIDING_TUMBLING else 1
+        self.window = FastInstanceWindow(max_size=modif*self.window_slide)
         self.mod = [0, len(clfs)]
         self.drift_detectors = [FHDDM(delta=0.000001) for _ in clfs]
         self.classes_ = classes
@@ -139,7 +143,7 @@ class EnsembleVoteClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
 
         if self.voting not in ('soft', 'hard', 'sum_prob'):
             raise ValueError("Voting must be 'soft' or 'hard' or 'sum_prob'; got (voting=%r)"
-                             % self.voting)
+                             % self.voting.name)
 
         if self.weights and len(self.weights) != len(self.clfs):
             raise ValueError('Number of classifiers and weights must be equal'
@@ -159,9 +163,16 @@ class EnsembleVoteClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
             # This should only be called when streaming
             self.window.add_elements(np.asarray(X), np.asarray(self.le_.transform(y)))
             # self.clfs = [clf.partial_fit(self.window) for clf in self.clfs]
-            to_fit = self.clfs[self.mod[0]]
-            to_fit.partial_fit(self.window.get_attributes_matrix(), self.window.get_targets_matrix().ravel())
-            self.mod[0] = (self.mod[0] + 1) % self.mod[1]
+
+            if self.window_type == Window.SLIDING_TUMBLING:
+                to_fit = self.clfs[self.mod[0]]
+                to_fit.partial_fit(self.window.get_attributes_matrix(), self.window.get_targets_matrix().ravel())
+                self.mod[0] = (self.mod[0] + 1) % self.mod[1]
+            else:
+                winX, winy = self.window.get_attributes_matrix(), self.window.get_targets_matrix().ravel()
+                for clf in self.clfs:
+                    self._first_fit_one_clf(clf, winX, winy)
+
         return self
 
     def predict(self, X):
@@ -184,7 +195,6 @@ class EnsembleVoteClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
                                  "call `fit` before exploiting the model.")
 
         if self.voting == 'soft':
-
             maj = np.argmax(self.predict_proba(X), axis=1)
 
         elif self.voting == 'hard':
@@ -204,7 +214,7 @@ class EnsembleVoteClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
             for index, detector in enumerate(self.drift_detectors):
                 pr = [maj[i] == [np.argmax(predictions[index][i])] for i in range(len(predictions[index]))]
                 if detector.run(np.hstack(pr)):
-                    print("drift detected by ", self.clfs[index].__class__, end='')
+                    # print("drift detected by ", self.clfs[index].__class__, end='')
                     self.first_fit = True
                     break
         
