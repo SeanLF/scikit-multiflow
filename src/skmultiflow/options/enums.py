@@ -29,10 +29,11 @@ class Classifier(Enum):
     """
     Classifiers to test in experiments
     """
-    # OZA_BOOSTING=auto() # TODO: uncomment when implemented
+    VOTING_ENSEMBLE=auto()
+    LEVERAGE_BAGGING=auto()
+    MULTINOMIAL_NB=auto()
     GAUSSIAN_NB=auto()
     SGD=auto()
-    Multinomial_NB=auto()
-    OZA_BAGGING=auto()
-    LEVERAGE_BAGGING=auto()
-    VOTING_ENSEMBLE=auto()
+
+    
+# OZA_BAGGING=auto()

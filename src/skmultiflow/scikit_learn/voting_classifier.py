@@ -5,6 +5,7 @@
 #
 # Implementation of an meta-classification algorithm for majority voting.
 # Author: Sebastian Raschka <sebastianraschka.com>
+# Author: Sean Floyd <sfloyd@uottawa.ca>
 #
 # License: BSD 3 clause
 
@@ -84,38 +85,41 @@ class EnsembleVoteClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
     [1 1 1 2 2 2]
     >>>
     """
-    def __init__(self, clfs, voting=Voting('hard'), window_type=Window(3),
-                 weights=None, verbose=0, classes=None, window_slide=1, reset_all_clfs=True):
+    def __init__(self,
+                clfs,
+                voting=Voting('hard'),
+                window_type=Window(3),
+                weights=None,
+                verbose=0,
+                classes=None,
+                reset_all_clfs=True):
 
         self.clfs = clfs
         self.named_clfs = {key: value for key, value in _name_estimators(clfs)}
-        self.voting = voting
+        self.voting = voting.value
         self.weights = weights
         self.verbose = verbose
         self.first_fit = True
         self.window_type = window_type
-        self.window_slide = window_slide
-        modif = len(clfs) if self.window_type == Window.SLIDING_TUMBLING else 1
-        self.window = FastInstanceWindow(max_size=modif*self.window_slide)
-        self.mod = [0, len(clfs)]
-        self.drift_detectors = [FHDDM(delta=0.000001) for _ in clfs]
+        self.mod = [0, len(clfs)] # for SlidingTumbling windows
+        # self.drift_detectors = [FHDDM(delta=0.000001) for _ in clfs]
         self.classes_ = classes
 
         self.le_ = LabelEncoder()
         self.le_.fit(classes)
         self.classes_ = self.le_.classes_
 
-        self.proba_clfs = []
-        self.non_proba_clfs = []
+        # self.proba_clfs = []
+        # self.non_proba_clfs = []
 
         self.reset_clfs = [False]*len(clfs)
         self.reset_all_clfs = reset_all_clfs
 
-        for idx, clf in enumerate(self.clfs):
-            if callable(getattr(clf, "predict_proba", None)):
-                self.proba_clfs.append(idx)
-            else:
-                self.non_proba_clfs.append(idx)
+        # for idx, clf in enumerate(self.clfs):
+        #     if callable(getattr(clf, "predict_proba", None)):
+        #         self.proba_clfs.append(idx)
+        #     else:
+        #         self.non_proba_clfs.append(idx)
 
     def partial_fit(self, X, y, classes=None):
         return self.fit(X,y, classes=self.classes_)
@@ -143,7 +147,7 @@ class EnsembleVoteClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
 
         if self.voting not in ('soft', 'hard', 'sum_prob'):
             raise ValueError("Voting must be 'soft' or 'hard' or 'sum_prob'; got (voting=%r)"
-                             % self.voting.name)
+                             % self.voting)
 
         if self.weights and len(self.weights) != len(self.clfs):
             raise ValueError('Number of classifiers and weights must be equal'
@@ -161,17 +165,16 @@ class EnsembleVoteClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
         else:
             # First fit is only true on the first function call
             # This should only be called when streaming
-            self.window.add_elements(np.asarray(X), np.asarray(self.le_.transform(y)))
+            y = self.le_.transform(y)
             # self.clfs = [clf.partial_fit(self.window) for clf in self.clfs]
 
             if self.window_type == Window.SLIDING_TUMBLING:
                 to_fit = self.clfs[self.mod[0]]
-                to_fit.partial_fit(self.window.get_attributes_matrix(), self.window.get_targets_matrix().ravel())
+                to_fit.partial_fit(X, y)
                 self.mod[0] = (self.mod[0] + 1) % self.mod[1]
             else:
-                winX, winy = self.window.get_attributes_matrix(), self.window.get_targets_matrix().ravel()
                 for clf in self.clfs:
-                    self._first_fit_one_clf(clf, winX, winy)
+                    self._first_fit_one_clf(clf, X, y)
 
         return self
 
@@ -211,12 +214,12 @@ class EnsembleVoteClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
             sum = np.sum(predictions, axis=0)
             maj = np.argmax(sum, axis=1)
 
-            for index, detector in enumerate(self.drift_detectors):
-                pr = [maj[i] == [np.argmax(predictions[index][i])] for i in range(len(predictions[index]))]
-                if detector.run(np.hstack(pr)):
-                    # print("drift detected by ", self.clfs[index].__class__, end='')
-                    self.first_fit = True
-                    break
+            # for index, detector in enumerate(self.drift_detectors):
+            #     pr = [maj[i] == [np.argmax(predictions[index][i])] for i in range(len(predictions[index]))]
+            #     if detector.run(np.hstack(pr)):
+            #         # print("drift detected by ", self.clfs[index].__class__, end='')
+            #         self.first_fit = True
+            #         break
         
         maj = self.le_.inverse_transform(maj)
         return maj
@@ -283,8 +286,8 @@ class EnsembleVoteClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
     def reset(self):
         if self.reset_all_clfs:
             self.clfs = [clf.__class__(**ParameterGrid(clf.get_params()).param_grid[0]) for clf in self.clfs] # hack
-            for d in self.drift_detectors:
-                d.reset()
+            # for d in self.drift_detectors:
+            #     d.reset()
         else:
             # each classifier has a 70% chance of being reset
             for idx, clf in enumerate(self.clfs):
@@ -292,10 +295,9 @@ class EnsembleVoteClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
                 self.reset_clfs[idx] = will_reset
                 if will_reset:
                     self.clfs[idx] = clf.__class__(**ParameterGrid(clf.get_params()).param_grid[0])
-                    self.drift_detectors[idx].reset()
+                    # self.drift_detectors[idx].reset()
 
-    def refit(self):
-        X, y = self.window.get_attributes_matrix(), self.window.get_targets_matrix().ravel()
+    def refit(self, X, y):
         if self.reset_all_clfs:
             self.partial_fit(X, y, classes=self.classes_)
         else:

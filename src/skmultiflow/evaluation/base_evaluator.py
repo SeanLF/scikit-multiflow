@@ -385,7 +385,7 @@ class StreamEvaluator(BaseObject, metaclass=ABCMeta):
     def _init_file(self):
 
         if self.output_file is not None:
-            with open(self.output_file, 'w+') as f:
+            with open(self.output_file, 'a+') as f:
                 f.write("# TEST CONFIGURATION BEGIN")
                 if hasattr(self.stream, 'get_info'):
                     f.write("\n# {}".format(self.stream.get_info()))
@@ -678,3 +678,7 @@ class StreamEvaluator(BaseObject, metaclass=ABCMeta):
         """
         _, measurements = self.get_measurements(model_idx)
         return measurements
+
+    def _write_time(self, running_time):
+        with open(self.output_file, 'a') as f:
+            f.write('\n\n' + 'Evaluation time: {:.3f} s'.format(running_time))

@@ -4,7 +4,11 @@ import warnings
 from timeit import default_timer as timer
 from skmultiflow.evaluation.base_evaluator import StreamEvaluator
 from skmultiflow.utils import constants
+from skmultiflow.utils.data_structures import FastInstanceWindow
+from skmultiflow.options import Classifier, Window, Voting, DriftReset
 import random
+
+import numpy as np
 
 
 class EvaluatePrequential(StreamEvaluator):
@@ -138,6 +142,8 @@ class EvaluatePrequential(StreamEvaluator):
                  n_wait=200,
                  max_samples=100000,
                  batch_size=1,
+                 window_size=1,
+                 window_type=Window(3),
                  pretrain_size=200,
                  max_time=float("inf"),
                  metrics=None,
@@ -152,6 +158,8 @@ class EvaluatePrequential(StreamEvaluator):
         self.max_samples = max_samples
         self.pretrain_size = pretrain_size
         self.batch_size = batch_size
+        self.window_type = window_type
+        self.window_size = window_size
         self.max_time = max_time
         self.output_file = output_file
         self.show_plot = show_plot
@@ -233,6 +241,12 @@ class EvaluatePrequential(StreamEvaluator):
 
         can_run_concept_drift_detection = False
         drift_warning = 0
+
+        try:
+            self.window_size = len(self.model[0].clfs)*self.batch_size if (self.window_type == Window.SLIDING_TUMBLING and len(self.model) == 1 and self.window_size != self.batch_size*len(self.model[0].clfs)) else self.window_size
+        except Exception:
+            pass
+        self.window = FastInstanceWindow(max_size=self.window_size)
         
         try:
             can_run_concept_drift_detection = self.model[0].first_fit
@@ -268,6 +282,9 @@ class EvaluatePrequential(StreamEvaluator):
             try:
                 X, y = self.stream.next_sample(self.batch_size)
 
+                self.window.add_elements(np.asarray(X), np.asarray(y))
+                window_X, window_y = self.window.get_attributes_matrix(), self.window.get_targets_matrix().ravel()
+
                 if X is not None and y is not None:
                     # Test
                     prediction = [[] for _ in range(self.n_models)]
@@ -291,16 +308,16 @@ class EvaluatePrequential(StreamEvaluator):
 
                     # Test for concept drift
                     # drift=False
-                    if not first_run and can_run_concept_drift_detection and self.model[0].first_fit:
-                        # logging.info("\t@ instance: %s", self.global_sample_count)
-                        if self.global_sample_count - drift_warning < 1500:
-                            self.model[0].reset()
-                            self.model[0].refit()
-                            # logging.info("\t\tReset")
-                        # self.model[0].partial_fit(self.model[0].window.get_attributes_matrix(),
-                                                    # self.model[0].window.get_targets_matrix().ravel())
-                        drift_warning = self.global_sample_count
-                        # drift=True
+                    # if not first_run and can_run_concept_drift_detection and self.model[0].first_fit:
+                    #     # logging.info("\t@ instance: %s", self.global_sample_count)
+                    #     if self.global_sample_count - drift_warning < 1500:
+                    #         self.model[0].reset()
+                    #         self.model[0].refit()
+                    #         # logging.info("\t\tReset")
+                    #     # self.model[0].partial_fit(self.model[0].window.get_attributes_matrix(),
+                    #                                 # self.model[0].window.get_targets_matrix().ravel())
+                    #     drift_warning = self.global_sample_count
+                    #     # drift=True
 
                     # y = y if (random.uniform(0,1) > 0.5) or drift else prediction[0]
 
@@ -309,13 +326,13 @@ class EvaluatePrequential(StreamEvaluator):
                         for i in range(self.n_models):
                             if self._task_type != constants.REGRESSION and \
                                self._task_type != constants.MULTI_TARGET_REGRESSION:
-                                self.model[i].partial_fit(X, y, self.stream.target_values)
+                                self.model[i].partial_fit(window_X, window_y, self.stream.target_values)
                             else:
-                                self.model[i].partial_fit(X, y)
+                                self.model[i].partial_fit(window_X, window_y)
                         first_run = False
                     else:
                         for i in range(self.n_models):
-                            self.model[i].partial_fit(X, y)
+                            self.model[i].partial_fit(window_X, window_y)
 
                     if ((self.global_sample_count % self.n_wait) == 0 or
                             (self.global_sample_count >= self.max_samples) or
