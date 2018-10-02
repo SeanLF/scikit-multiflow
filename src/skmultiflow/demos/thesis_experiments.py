@@ -43,7 +43,7 @@ TORNADO_FILES = [
     "/Users/sean/Developer/scikit-multiflow/src/skmultiflow/datasets/tornado/sine1_w_50_n_0.1/sine1_w_50_n_0.1_105.csv",
 ]
 
-def demo(stream, output_file, classifier, batch_size, window_size, window_type, drift_reset, drift_g_t_percentage, show_plot=False):
+def demo(stream, output_file, classifier, batch_size, window_size, window_type, drift, show_plot=False):
     """ thesis
     This demo demonstrates the use of an ensemble learner.
     """
@@ -63,19 +63,18 @@ def demo(stream, output_file, classifier, batch_size, window_size, window_type, 
         window_size=window_size,
         window_type=window_type,
         batch_size=batch_size,
+        drift=drift,
         output_file=output_file)
     evaluator.evaluate(stream=stream, model=classifier)
 
-def setup_clf(classifier, classes, window_type, voting=Voting('sum_prob')):
+def setup_clf(classifier, classes, window_type, drift, voting=Voting('sum_prob')):
     clf = None
     if classifier == Classifier.VOTING_ENSEMBLE:
-        clf = EnsembleVoteClassifier(voting=voting, classes=classes, window_type=window_type, clfs=[
+        clf = EnsembleVoteClassifier(drift=drift, voting=voting, classes=classes, window_type=window_type, clfs=[
             GaussianNB()
             ,linear_model.SGDClassifier(loss='log', max_iter=1000, tol=1e-3)
             ,MultinomialNB()
         ])
-    elif classifier == Classifier.OZA_BAGGING:
-        clf = OzaBagging()
     elif classifier == Classifier.LEVERAGE_BAGGING:
         clf = LeverageBagging()
     elif classifier == Classifier.GAUSSIAN_NB:
@@ -96,8 +95,7 @@ def thesis_experiment(
                     batch_size=33,
                     voting=Voting('sum_prob'),
                     classifier=Classifier(1),
-                    drift_reset=DriftReset(3),
-                    drift_g_t_percentage=0.5):
+                    drift={}):
     
     # Verify validity of batch and window sizes
     if batch_size > window_size:
@@ -107,7 +105,10 @@ def thesis_experiment(
     if window_size != batch_size and (window_type == Window.TUMBLING):
         raise ValueError('Window and batch size must be identical [TUMBLING]')
     if classifier == Classifier.VOTING_ENSEMBLE and window_type == Window.SLIDING_TUMBLING and window_size != 3*batch_size:
-        window_size = 3*batch_size # TODO: undo hardcode ensemble size
+        window_size = 3*batch_size 
+        # -------------------------------------------- #
+        # TODO: undo hardcode ensemble size ^          #
+        # -------------------------------------------- #
 
     streams__output_files = list()
 
@@ -124,8 +125,8 @@ def thesis_experiment(
 
     # run all
     for stream, is_file, output_file in streams__output_files:
-        clf=setup_clf(classifier, prepare_for_use(stream, is_file), window_type, voting=voting)
-        demo(stream, output_file, batch_size=batch_size, window_type=window_type, window_size=window_size, classifier=clf, drift_reset=drift_reset, drift_g_t_percentage=drift_g_t_percentage)
+        clf=setup_clf(classifier, prepare_for_use(stream, is_file), window_type, drift, voting=voting)
+        demo(stream, output_file, batch_size=batch_size, window_type=window_type, window_size=window_size, classifier=clf, drift=drift)
     
 def prepare_for_use(stream, file_stream):
     stream.prepare_for_use()
@@ -143,9 +144,9 @@ for clf in Classifier:
     thesis_experiment('compare_all', classifier=Classifier(clf))
 
 ## Examine how sliding windows perform against tumbling windows and against sliding tumbling windows
-thesis_experiment('window_type', classifier=Classifier.VOTING_ENSEMBLE, window_type=Window.SLIDING)
-thesis_experiment('window_type', classifier=Classifier.VOTING_ENSEMBLE, window_type=Window.TUMBLING, window_size=33)
-thesis_experiment('window_type', classifier=Classifier.VOTING_ENSEMBLE, window_type=Window.SLIDING_TUMBLING)
+thesis_experiment('window_type/sliding', classifier=Classifier.VOTING_ENSEMBLE, window_type=Window.SLIDING)
+thesis_experiment('window_type/tumbling', classifier=Classifier.VOTING_ENSEMBLE, window_type=Window.TUMBLING, window_size=33)
+thesis_experiment('window_type/hybrid', classifier=Classifier.VOTING_ENSEMBLE, window_type=Window.SLIDING_TUMBLING)
 
 ## The size of the window or batch (w) will have an impact on the results; we probably need some experiments about that.
 for window_size in range(0, 100, 10):
@@ -153,23 +154,23 @@ for window_size in range(0, 100, 10):
 
 ## Compare different voting ensemble strategies against one another and against single classifiers 
 # and against other ensemble methods. Compare outcomes
-thesis_experiment('voting_type', classifier=Classifier.VOTING_ENSEMBLE, voting=Voting.SUM_PROB_VOTING) # default strategy
-thesis_experiment('voting_type', classifier=Classifier.VOTING_ENSEMBLE, voting=Voting.HARD_VOTING)
-thesis_experiment('voting_type', classifier=Classifier.VOTING_ENSEMBLE, voting=Voting.SOFT_VOTING)
+thesis_experiment('voting_type/sum', classifier=Classifier.VOTING_ENSEMBLE, voting=Voting.SUM_PROB_VOTING) # default strategy
+thesis_experiment('voting_type/hard', classifier=Classifier.VOTING_ENSEMBLE, voting=Voting.HARD_VOTING)
+thesis_experiment('voting_type/soft', classifier=Classifier.VOTING_ENSEMBLE, voting=Voting.SOFT_VOTING)
 
-## Find the right balance of ground truth that can be omitted versus using predicted values as the ground truth
-for percentage in range(0.0, 1.0, 0.1):
-    thesis_experiment('drift_ground_truth_reliance', drift_g_t_percentage=percentage)
+# ## Find the right balance of ground truth that can be omitted versus using predicted values as the ground truth
+# for percentage in range(0.0, 1.0, 0.1):
+#     for reset_type in DriftReset:
+#         thesis_experiment(str(reset_type)+'_'+str(percentage), drift={'drift_reset': reset_type, 'd_g_%': percentage})
 
-## See how the ensemble classifier reset logic affects the results
-# It is good to compare to blind adaptation, i.e. a simple model reset at every x instances.
-thesis_experiment('drift_reset', drift_reset=DriftReset.NONE)
-thesis_experiment('drift_reset', drift_reset=DriftReset.BLIND_RESET)
-thesis_experiment('drift_reset', drift_reset=DriftReset.RESET_ALL)
-thesis_experiment('drift_reset', drift_reset=DriftReset.PARTIAL_RESET)
+# ## See how the ensemble classifier reset logic affects the results
+# # It is good to compare to blind adaptation, i.e. a simple model reset at every x instances.
 
-## See how the modified concept drift detector performs depending on window type
+# ## See how the modified concept drift detector performs depending on window type
+# thesis_experiment('concept_drift/sliding', classifier=Classifier.VOTING_ENSEMBLE, window_type=Window.SLIDING, drift={'drift_reset': DriftReset.PARTIAL})
+# thesis_experiment('concept_drift/tumbling', classifier=Classifier.VOTING_ENSEMBLE, window_type=Window.TUMBLING, window_size=33, drift={'drift_reset': DriftReset.PARTIAL})
+# thesis_experiment('concept_drift/sliding_tumbling', classifier=Classifier.VOTING_ENSEMBLE, window_type=Window.SLIDING_TUMBLING, drift={'drift_reset': DriftReset.PARTIAL})
 
-# TODO: implement
-## Determine if the summarising classifiers improve performance
-## Determine threshold when best to use summarizer over the normal voting classifiers.
+# # TODO: implement
+# ## Determine if the summarising classifiers improve performance
+# ## Determine threshold when best to use summarizer over the normal voting classifiers.

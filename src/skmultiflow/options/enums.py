@@ -13,7 +13,8 @@ class DriftReset(Enum):
     Drift detection reset technique
     """
     NONE=auto()
-    BLIND=auto()
+    BLIND_INTERVAL=auto()
+    BLIND_RANDOM=auto()
     PARTIAL=auto()
     ALL=auto()
 
@@ -30,10 +31,7 @@ class Classifier(Enum):
     Classifiers to test in experiments
     """
     VOTING_ENSEMBLE=auto()
-    LEVERAGE_BAGGING=auto()
     MULTINOMIAL_NB=auto()
     GAUSSIAN_NB=auto()
     SGD=auto()
-
-    
-# OZA_BAGGING=auto()
+    LEVERAGE_BAGGING=auto()

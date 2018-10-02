@@ -145,6 +145,7 @@ class EvaluatePrequential(StreamEvaluator):
                  window_size=1,
                  window_type=Window(3),
                  pretrain_size=200,
+                 drift={},
                  max_time=float("inf"),
                  metrics=None,
                  output_file=None,
@@ -160,6 +161,12 @@ class EvaluatePrequential(StreamEvaluator):
         self.batch_size = batch_size
         self.window_type = window_type
         self.window_size = window_size
+        self.drift_detection_enabled = bool(drift)
+        try:
+            self.drift_reset = drift['drift_reset']
+            self.drift_g_t_percentage = drift['g_t_%']
+        except Exception:
+            pass
         self.max_time = max_time
         self.output_file = output_file
         self.show_plot = show_plot
@@ -307,19 +314,29 @@ class EvaluatePrequential(StreamEvaluator):
                     self._check_progress(logging, n_samples)
 
                     # Test for concept drift
-                    # drift=False
-                    # if not first_run and can_run_concept_drift_detection and self.model[0].first_fit:
-                    #     # logging.info("\t@ instance: %s", self.global_sample_count)
-                    #     if self.global_sample_count - drift_warning < 1500:
-                    #         self.model[0].reset()
-                    #         self.model[0].refit()
-                    #         # logging.info("\t\tReset")
-                    #     # self.model[0].partial_fit(self.model[0].window.get_attributes_matrix(),
-                    #                                 # self.model[0].window.get_targets_matrix().ravel())
-                    #     drift_warning = self.global_sample_count
-                    #     # drift=True
+                    if self.drift_detection_enabled:
+                        drift=False
+                        if self.drift_reset == DriftReset.BLIND_INTERVAL:
+                            if (self.global_sample_count - self.pretrain_size) % 5*self.batch_size == 0:
+                                self.model[0].reset(self.drift_reset)
+                                self.model[0].refit(window_X, window_y, self.drift_reset)
+                        elif self.drift_reset == DriftReset.BLIND_RANDOM: # reset 
+                            if (self.global_sample_count - self.pretrain_size) % int(random.uniform(1,7))*self.batch_size == 0:
+                                self.model[0].reset(self.drift_reset)
+                                self.model[0].refit(window_X, window_y, self.drift_reset)
+                        elif (not first_run) and can_run_concept_drift_detection and self.model[0].first_fit:
+                            logging.info("\t@ instance: %s", self.global_sample_count)
+                            if self.global_sample_count - drift_warning < 1500:
+                                self.model[0].reset(self.drift_reset)
+                                self.model[0].refit(window_X, window_y, self.drift_reset)
+                                logging.info("\t\tReset")
+                            # self.model[0].partial_fit(self.model[0].window.get_attributes_matrix(),
+                                                        # self.model[0].window.get_targets_matrix().ravel())
+                            drift_warning = self.global_sample_count
+                            drift=True
 
-                    # y = y if (random.uniform(0,1) > 0.5) or drift else prediction[0]
+                        # y value becomes 
+                        window_y = y if (random.uniform(0,1) > 1.0-self.drift_g_t_percentage) or drift else prediction[0]
 
                     # Train
                     if first_run:
@@ -349,6 +366,7 @@ class EvaluatePrequential(StreamEvaluator):
                 break
 
         self.evaluation_summary(logging, start_time, end_time)
+        self._write_time(end_time - start_time)
 
         if self.restart_stream:
             self.stream.restart()

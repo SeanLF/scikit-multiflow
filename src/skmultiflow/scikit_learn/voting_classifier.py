@@ -87,14 +87,19 @@ class EnsembleVoteClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
     """
     def __init__(self,
                 clfs,
+                drift,
                 voting=Voting('hard'),
                 window_type=Window(3),
                 weights=None,
                 verbose=0,
-                classes=None,
-                reset_all_clfs=True):
+                classes=None):
 
         self.clfs = clfs
+        # self.drift_detection_enabled = bool(drift)
+        # if self.drift_detection_enabled:
+        #     self.drift_reset = drift['drift_reset']
+        #     self.drift_g_t_percentage = drift['g_t_%']
+        #     self.drift_detectors = [FHDDM(delta=0.000001) for _ in clfs]
         self.named_clfs = {key: value for key, value in _name_estimators(clfs)}
         self.voting = voting.value
         self.weights = weights
@@ -102,7 +107,6 @@ class EnsembleVoteClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
         self.first_fit = True
         self.window_type = window_type
         self.mod = [0, len(clfs)] # for SlidingTumbling windows
-        # self.drift_detectors = [FHDDM(delta=0.000001) for _ in clfs]
         self.classes_ = classes
 
         self.le_ = LabelEncoder()
@@ -113,7 +117,6 @@ class EnsembleVoteClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
         # self.non_proba_clfs = []
 
         self.reset_clfs = [False]*len(clfs)
-        self.reset_all_clfs = reset_all_clfs
 
         # for idx, clf in enumerate(self.clfs):
         #     if callable(getattr(clf, "predict_proba", None)):
@@ -214,19 +217,20 @@ class EnsembleVoteClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
             sum = np.sum(predictions, axis=0)
             maj = np.argmax(sum, axis=1)
 
-            # for index, detector in enumerate(self.drift_detectors):
-            #     pr = [maj[i] == [np.argmax(predictions[index][i])] for i in range(len(predictions[index]))]
-            #     if detector.run(np.hstack(pr)):
-            #         # print("drift detected by ", self.clfs[index].__class__, end='')
-            #         self.first_fit = True
-            #         break
-        
+        if self.drift_detection_enabled:
+            for index, detector in enumerate(self.drift_detectors):
+                pr = [maj[i] == [np.argmax(predictions[index][i])] for i in range(len(predictions[index]))]
+                if detector.run(np.hstack(pr)):
+                    print("drift detected by ", self.clfs[index].__class__, end='')
+                    self.first_fit = True
+                    break
+
         maj = self.le_.inverse_transform(maj)
         return maj
 
     def predict_proba(self, X):
         """ Predict class probabilities for X.
-
+ 
         Parameters
         ----------
         X : {array-like, sparse matrix}, shape = [n_samples, n_features]
@@ -283,12 +287,15 @@ class EnsembleVoteClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
                 out['%s' % key] = value
             return out
 
-    def reset(self):
-        if self.reset_all_clfs:
+    def run_drift_detection(self):
+        
+
+    def reset(self, reset_strategy):
+        if reset_strategy == DriftReset.ALL:
             self.clfs = [clf.__class__(**ParameterGrid(clf.get_params()).param_grid[0]) for clf in self.clfs] # hack
             # for d in self.drift_detectors:
             #     d.reset()
-        else:
+        elif reset_strategy == DriftReset.PARTIAL:
             # each classifier has a 70% chance of being reset
             for idx, clf in enumerate(self.clfs):
                 will_reset = np.random.choice([False, True], p=[0.3, 0.7])
@@ -297,8 +304,8 @@ class EnsembleVoteClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
                     self.clfs[idx] = clf.__class__(**ParameterGrid(clf.get_params()).param_grid[0])
                     # self.drift_detectors[idx].reset()
 
-    def refit(self, X, y):
-        if self.reset_all_clfs:
+    def refit(self, X, y, reset_strategy):
+        if reset_strategy == DriftReset.ALL:
             self.partial_fit(X, y, classes=self.classes_)
         else:
             for idx, clf in enumerate(self.clfs):
