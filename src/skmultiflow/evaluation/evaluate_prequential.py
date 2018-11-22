@@ -7,6 +7,7 @@ from skmultiflow.utils import constants
 from skmultiflow.utils.data_structures import FastInstanceWindow
 from skmultiflow.options import Classifier, Window, Voting, DriftReset
 import random
+from skmultiflow.data.sea_generator import SEAGenerator
 
 import numpy as np
 
@@ -240,6 +241,11 @@ class EvaluatePrequential(StreamEvaluator):
         class as well.
 
         """
+
+        # only for SEA
+        num_sea_drifts=4
+        sea_drifts = np.linspace(self.max_samples/num_sea_drifts, self.max_samples, num=num_sea_drifts, dtype=np.dtype('i'))
+        
         logging.basicConfig(format='%(message)s', level=logging.INFO)
         start_time = timer()
         end_time = timer()
@@ -248,6 +254,7 @@ class EvaluatePrequential(StreamEvaluator):
 
         can_run_concept_drift_detection = False
         drift_warning = 0
+        blind_random_value = int(random.uniform(1,7))*self.batch_size
 
         try:
             self.window_size = len(self.model[0].clfs)*self.batch_size if (self.window_type == Window.SLIDING_TUMBLING and len(self.model) == 1 and self.window_size != self.batch_size*len(self.model[0].clfs)) else self.window_size
@@ -286,11 +293,14 @@ class EvaluatePrequential(StreamEvaluator):
         logging.info('Evaluating...')
         while ((self.global_sample_count < self.max_samples) & (end_time - start_time < self.max_time)
                & (self.stream.has_more_samples())):
+            if isinstance(self.stream, SEAGenerator) and self.global_sample_count >= sea_drifts[0]:
+                self.stream.classification_function_idx+=1
+                sea_drifts=sea_drifts[1:]
             try:
                 X, y = self.stream.next_sample(self.batch_size)
 
                 self.window.add_elements(np.asarray(X), np.asarray(y))
-                window_X, window_y = self.window.get_attributes_matrix(), self.window.get_targets_matrix().ravel()
+                window_X = self.window.get_attributes_matrix() # window_y set later on
 
                 if X is not None and y is not None:
                     # Test
@@ -315,28 +325,32 @@ class EvaluatePrequential(StreamEvaluator):
 
                     # Test for concept drift
                     if self.drift_detection_enabled:
-                        drift=False
-                        if self.drift_reset == DriftReset.BLIND_INTERVAL:
-                            if (self.global_sample_count - self.pretrain_size) % 5*self.batch_size == 0:
-                                self.model[0].reset(self.drift_reset)
-                                self.model[0].refit(window_X, window_y, self.drift_reset)
-                        elif self.drift_reset == DriftReset.BLIND_RANDOM: # reset 
-                            if (self.global_sample_count - self.pretrain_size) % int(random.uniform(1,7))*self.batch_size == 0:
-                                self.model[0].reset(self.drift_reset)
-                                self.model[0].refit(window_X, window_y, self.drift_reset)
-                        elif (not first_run) and can_run_concept_drift_detection and self.model[0].first_fit:
+                        drift, reset=False, False
+                        if self.drift_reset == DriftReset.BLIND_RANDOM:
+                            if (self.global_sample_count - self.pretrain_size) % blind_random_value == 0:
+                                reset=True
+                        elif self.drift_reset == DriftReset.NONE:
+                            pass # do nothing
+                        elif (not first_run) and can_run_concept_drift_detection and self.model[0].first_fit: # drift_detected!
                             logging.info("\t@ instance: %s", self.global_sample_count)
-                            if self.global_sample_count - drift_warning < 1500:
-                                self.model[0].reset(self.drift_reset)
-                                self.model[0].refit(window_X, window_y, self.drift_reset)
+                            if self.global_sample_count - drift_warning < 1500: # TODO: explain why 1500 is min drift interval
+                                reset=True
                                 logging.info("\t\tReset")
-                            # self.model[0].partial_fit(self.model[0].window.get_attributes_matrix(),
-                                                        # self.model[0].window.get_targets_matrix().ravel())
                             drift_warning = self.global_sample_count
                             drift=True
 
-                        # y value becomes 
-                        window_y = y if (random.uniform(0,1) > 1.0-self.drift_g_t_percentage) or drift else prediction[0]
+                        # y values can become predictions and not ground truth
+                        if (int(random.uniform(0,100)) > self.drift_g_t_percentage) and not drift:
+                            self.window.replace_y(prediction[0]) # replace ground truth in window with predictions
+
+                        window_y = self.window.get_targets_matrix().ravel()
+
+                        if reset:
+                            self.model[0].reset(self.drift_reset)
+                            self.model[0].refit(window_X, window_y, self.drift_reset)
+
+                    else:
+                        window_y = self.window.get_targets_matrix().ravel()
 
                     # Train
                     if first_run:
@@ -366,7 +380,7 @@ class EvaluatePrequential(StreamEvaluator):
                 break
 
         self.evaluation_summary(logging, start_time, end_time)
-        self._write_time(end_time - start_time)
+        self._write_time_and_confusion_matrix(end_time - start_time)
 
         if self.restart_stream:
             self.stream.restart()

@@ -8,7 +8,7 @@ from skmultiflow.metrics import WindowClassificationMeasurements, Classification
     WindowMultiTargetRegressionMeasurements
 from skmultiflow.utils import FastBuffer
 import skmultiflow.utils.constants as constants
-
+from pandas import DataFrame
 
 class StreamEvaluator(BaseObject, metaclass=ABCMeta):
     """ The abstract class that works as a base model for all of this framework's
@@ -679,6 +679,8 @@ class StreamEvaluator(BaseObject, metaclass=ABCMeta):
         _, measurements = self.get_measurements(model_idx)
         return measurements
 
-    def _write_time(self, running_time):
+    def _write_time_and_confusion_matrix(self, running_time):
         with open(self.output_file, 'a') as f:
             f.write('\n\n' + 'Evaluation time: {:.3f} s'.format(running_time))
+            f.write('\n\n' + self.mean_eval_measurements[0].get_info())
+            f.write('\n\n' + str(DataFrame(self.mean_eval_measurements[0]._matrix)))

@@ -4,3 +4,4 @@ scipy>=1.0.0
 matplotlib>=2.0.0
 scikit-learn
 pandas
+mlxtend

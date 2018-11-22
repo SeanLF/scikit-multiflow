@@ -1076,6 +1076,16 @@ class FastInstanceWindow(BaseObject):
         self.X = self.X[num:]
         self.y = self.y[num:]
 
+    def replace_y(self, y):
+        """ pop_element
+
+        Delete the newest num element from the sample window.
+
+        """
+        last_index = len(self.y) - len(y)
+        self.y = self.y[:last_index]
+        self.y = np.concatenate((self.y, y), axis=0)
+
     def get_attributes_matrix(self):
         return self.X
 

@@ -12,11 +12,10 @@ class DriftReset(Enum):
     """
     Drift detection reset technique
     """
-    NONE=auto()
-    BLIND_INTERVAL=auto()
-    BLIND_RANDOM=auto()
     PARTIAL=auto()
     ALL=auto()
+    BLIND_RANDOM=auto()
+    NONE=auto()
 
 class Voting(Enum):
     """
@@ -35,3 +34,5 @@ class Classifier(Enum):
     GAUSSIAN_NB=auto()
     SGD=auto()
     LEVERAGE_BAGGING=auto()
+    NO_CHANGE=auto()
+    MAJORITY_VOTING=auto()
