@@ -19,9 +19,9 @@ from mlxtend.externals.name_estimators import _name_estimators
 from mlxtend.externals import six
 import numpy as np
 from skmultiflow.utils.data_structures import FastInstanceWindow
-from skmultiflow.drift_detection.fhddm import FHDDM, FHDDMS
+from skmultiflow.drift_detection.fhddm import FHDDM, FHDDMS, PFHDDM, PFHDDMS
 from sklearn.model_selection import ParameterGrid
-from math import e, sin, pi
+from math import e, sin, pi, tanh
 
 from skmultiflow.options import Classifier, Window, Voting, DriftReset
 
@@ -99,8 +99,11 @@ class EnsembleVoteClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
         self.drift_detection_enabled = bool(drift)
         if self.drift_detection_enabled:
             self.drift_reset = drift['drift_reset']
-            self.drift_g_t_percentage = drift['g_t_%']
-            self.drift_detectors = [FHDDMS() for _ in clfs]
+            self.drift_detectors = [PFHDDMS() for _ in clfs] # [FHDDMS() for _ in clfs]
+            self.drift_detector = PFHDDMS()
+            self.drift_detection_method = drift['drift_detection_method']
+            self.drift_use_weighted_probabilities = drift['drift_use_weighted_probabilities']
+            self.partial_drift_reset_probabilities = drift['partial_drift_reset_p']
         self.named_clfs = {key: value for key, value in _name_estimators(clfs)}
         self.voting = voting.value
         self.weights = weights
@@ -109,6 +112,9 @@ class EnsembleVoteClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
         self.window_type = window_type
         self.mod = [0, len(clfs)] # for SlidingTumbling windows
         self.classes_ = classes
+        self.sigm = [14, 0.5]
+        self.tanh = [3.5, 7]
+        self.weight_fn = 'tanh'
 
         self.le_ = LabelEncoder()
         self.le_.fit(classes)
@@ -149,8 +155,8 @@ class EnsembleVoteClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
             raise NotImplementedError('Multilabel and multi-output'
                                       ' classification is not supported.')
 
-        if self.voting not in ('soft', 'hard', 'sum_prob'):
-            raise ValueError("Voting must be 'soft' or 'hard' or 'sum_prob'; got (voting=%r)"
+        if self.voting not in ('soft', 'hard', 'before_weight', 'after_weight'):
+            raise ValueError("Voting must be 'soft' or 'hard' or 'before_weight' or 'after_weight; got (voting=%r)"
                              % self.voting)
 
         if self.weights and len(self.weights) != len(self.clfs):
@@ -172,7 +178,7 @@ class EnsembleVoteClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
             y = self.le_.transform(y)
             # self.clfs = [clf.partial_fit(self.window) for clf in self.clfs]
 
-            if self.window_type == Window.SLIDING_TUMBLING:
+            if self.window_type == Window.HYBRID:
                 to_fit = self.clfs[self.mod[0]]
                 to_fit.partial_fit(X, y)
                 self.mod[0] = (self.mod[0] + 1) % self.mod[1]
@@ -201,32 +207,66 @@ class EnsembleVoteClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
             raise NotFittedError("Estimator not fitted, "
                                  "call `fit` before exploiting the model.")
 
-        if self.voting == 'soft': # average
-            predictions = self.predict_proba(X)
-            maj = np.argmax(predictions, axis=1)
+        # if self.voting == 'soft': # average
+        #     predictions = self.predict_proba(X)
+        #     maj = np.argmax(predictions, axis=1)
 
-        elif self.voting == 'hard': # majority vote
+        # elif self.voting == 'hard': # majority vote
+        #     predictions = self._predict(X)
+        #     maj = np.apply_along_axis(lambda x: np.argmax(np.bincount(x, weights=self.weights)), axis=1, arr=predictions)
+
+        # elif self.voting == 'sum_prob':
+        #     # predictions = self._predict_probas(X)
+        #     predictions = []
+        #     weighted = []
+        #     for clf in self.clfs:
+        #         p = clf.predict_proba(X)
+        #         predictions.append(p)
+        #         weighted.append(np.apply_along_axis(self._prediction_weighting, arr=p, axis=1))
+        #     avg = np.average(predictions, axis=0)
+        #     weighted_avg = np.average(weighted, axis=0)
+        #     maj = np.argmax(weighted_avg, axis=1)
+
+        if self.voting == 'hard': # majority vote
             predictions = self._predict(X)
-            maj = np.apply_along_axis(lambda x:
-                                      np.argmax(np.bincount(x,
-                                                weights=self.weights)),
-                                      axis=1,
-                                      arr=predictions)
-
-        elif self.voting == 'sum_prob':
-            # predictions = self._predict_probas(X)
-            predictions = np.asarray([np.apply_along_axis(self._prediction_weighting, arr=clf.predict_proba(X), axis=1) for clf in self.clfs])
-            sum = np.sum(predictions, axis=0)
-            maj = np.argmax(sum, axis=1)
+            maj = np.apply_along_axis(lambda x: np.argmax(np.bincount(x, weights=self.weights)), axis=1, arr=predictions)
+        
+        elif self.voting == 'soft':
+            predictions = self.predict_proba(X) # averaged predictions
+            maj = np.argmax(predictions, axis=1)
+        
+        elif self.voting == 'before_weight':
+            predictions = np.apply_along_axis(self._prediction_weighting, arr=self.predict_proba(X), axis=0) 
+            maj = np.argmax(predictions, axis=1)
+        
+        elif self.voting == 'after_weight':
+            predictions, weighted = [], []
+            for clf in self.clfs:
+                p = clf.predict_proba(X) # predict for specific clf
+                predictions.append(p)
+                weighted.append(np.apply_along_axis(self._prediction_weighting, arr=p, axis=1)) # weight predictions of that clf
+            avg = np.average(predictions, axis=0) # get average for voting clf
+            weighted_avg = np.average(weighted, axis=0) # get average for voting clf
+            maj = np.argmax(weighted_avg, axis=1)
 
         if self.drift_detection_enabled:
-            for index, detector in enumerate(self.drift_detectors):
-                # import pdb; pdb.set_trace()
-                pr = [maj[i] == [np.argmax(predictions[index][i])] for i in range(len(predictions[index]))]
-                if detector.run(np.hstack(pr)):
-                    print("drift detected by ", self.clfs[index].__class__, end='\n')
-                    self.first_fit = True
-                    break
+            1/0
+            # if self.drift_detection_method == 'one_proba':
+            #     to_enumerate = weighted_avg if self.drift_use_weighted_probabilities else (avg if self.voting == 'sum_prob' else predictions)
+            #     if self.drift_detector.run([v[maj[i]] for i, v in enumerate(to_enumerate)]):
+            #         self.first_fit = True
+            # else:
+            #     to_enumerate = weighted if self.drift_use_weighted_probabilities else predictions
+            #     for index, detector in enumerate(self.drift_detectors):
+            #         if self.drift_detection_method == 'proba_per_clf':
+            #             pr = [to_enumerate[index][i][v] for i, v in enumerate(maj)]
+            #         else:
+            #             pr = [maj[i] == [np.argmax(to_enumerate[index][i])] for i in range(len(to_enumerate[index]))]
+
+            #         if detector.run(pr):
+            #             print("drift detected by ", self.clfs[index].__class__, end='\n')
+            #             self.first_fit = True
+            #             break
 
         maj = self.le_.inverse_transform(maj)
         return maj
@@ -295,17 +335,27 @@ class EnsembleVoteClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
 
     def reset(self, reset_strategy):
         if reset_strategy == DriftReset.ALL:
-            self.clfs = [clf.__class__(**clf.get_params()) for clf in self.clfs] # hack
+            self.clfs = [self.reset_one_clf(clf) for clf in self.clfs] # hack
             for d in self.drift_detectors:
                 d.reset()
+            self.drift_detector.reset()
         elif reset_strategy == DriftReset.PARTIAL:
             # each classifier has a 70% chance of being reset
             for idx, clf in enumerate(self.clfs):
-                will_reset = np.random.choice([False, True], p=[0.3, 0.7])
+                will_reset = np.random.choice([False, True], p=self.partial_drift_reset_probabilities)
                 self.reset_clfs[idx] = will_reset
                 if will_reset:
-                    self.clfs[idx] = clf.__class__(**clf.get_params())
+                    self.clfs[idx] = self.reset_one_clf(self.clfs[idx])
+                    self.drift_detector.reset()
                     self.drift_detectors[idx].reset()
+
+    def reset_one_clf(self, clf):
+        if hasattr(clf, 'reset'):
+            clf.reset()
+            return clf
+        else:
+            return clf.__class__(**clf.get_params())
+        
 
     def refit(self, X, y, reset_strategy):
         if reset_strategy == DriftReset.ALL:
@@ -345,14 +395,19 @@ class EnsembleVoteClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
 
         clf.partial_fit(X, self.le_.transform(y), classes=self.classes_)
 
-    def _prediction_weighting(*args):
-        # if len(args[1]) == 2:
-        #     temp = (1.0 / (1 + (np.exp(-11.0 * (args[1][0] - 0.75)))))/0.94
-        #     return [temp, 1-temp]
-        # else:
-        #     return [(1.0 / (1 + (np.exp(-11.0 * (x - 0.75)))))/0.94 for x in args[1]]
-        if len(args[1]) == 2:
-            temp = sin((pi*args[1][0])/2)**8
-            return [temp, 1-temp]
-        else:
-            return [sin((pi*x)/2)**8 for x in args[1]]
+    def _prediction_weighting(self, *args):
+        if self.weight_fn == 'sigm':
+            return [self._sigmoid_weight(x) for x in args[0]]
+        elif self.weight_fn == 'tanh':
+            w_p=[]
+            for x in args[0]:
+                w_p.append(self._tanh_weight(x))
+            return w_p
+        elif self.weight_fn == 'none':
+            return args[0]
+        
+    def _tanh_weight(self, x):
+        return (1-tanh(self.tanh[0]-self.tanh[1]*x))/2
+    
+    def _sigmoid_weight(self, x):
+        return 1 / (1 + (np.exp((-self.sigm[0]) * (x - self.sigm[1]))))

@@ -679,8 +679,9 @@ class StreamEvaluator(BaseObject, metaclass=ABCMeta):
         _, measurements = self.get_measurements(model_idx)
         return measurements
 
-    def _write_time_and_confusion_matrix(self, running_time):
+    def _write_time_and_confusion_matrix_and_drifts_detected(self, running_time, drifts_detected):
         with open(self.output_file, 'a') as f:
-            f.write('\n\n' + 'Evaluation time: {:.3f} s'.format(running_time))
+            f.write('\n\nEvaluation time: {:.3f} s'.format(running_time))
             f.write('\n\n' + self.mean_eval_measurements[0].get_info())
             f.write('\n\n' + str(DataFrame(self.mean_eval_measurements[0]._matrix)))
+            f.write('\n\nDrifts detected: {} - list: {}'.format(len(drifts_detected), drifts_detected))

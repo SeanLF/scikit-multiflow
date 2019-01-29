@@ -6,7 +6,7 @@ class Window(Enum):
     """
     SLIDING=auto()
     TUMBLING=auto()
-    SLIDING_TUMBLING=auto()
+    HYBRID=auto()
 
 class DriftReset(Enum):
     """
@@ -21,7 +21,8 @@ class Voting(Enum):
     """
     Voting classifier voting technique
     """
-    SUM_PROB='sum_prob'
+    BEFORE_WEIGHT='before_weight'
+    AFTER_WEIGHT='after_weight'
     HARD='hard'
     SOFT='soft'
 
@@ -30,9 +31,10 @@ class Classifier(Enum):
     Classifiers to test in experiments
     """
     VOTING_ENSEMBLE=auto()
+    LEVERAGE_BAGGING=auto()
     MULTINOMIAL_NB=auto()
     GAUSSIAN_NB=auto()
     SGD=auto()
-    LEVERAGE_BAGGING=auto()
     NO_CHANGE=auto()
     MAJORITY_VOTING=auto()
+    HOEFFDING_TREE=auto()
