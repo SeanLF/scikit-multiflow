@@ -1,5 +1,27 @@
 from enum import Enum, auto
 
+class Classifier(Enum):
+    """
+    Classifiers to test in experiments
+    """
+    VOTING_ENSEMBLE=auto()
+    LEVERAGE_BAGGING=auto()
+    MULTINOMIAL_NB=auto()
+    GAUSSIAN_NB=auto()
+    SGD=auto()
+    NO_CHANGE=auto()
+    MAJORITY_VOTING=auto()
+    HOEFFDING_TREE=auto()
+
+class Voting(Enum):
+    """
+    Voting classifier voting technique
+    """
+    AVG_W_PROBABILITY=auto()
+    W_AVG_PROBABILITY=auto()
+    BOOLEAN=auto()
+    PROBABILITIY=auto()
+
 class Window(Enum):
     """
     Streaming window type
@@ -17,24 +39,17 @@ class DriftReset(Enum):
     BLIND_RANDOM=auto()
     NONE=auto()
 
-class Voting(Enum):
+class DriftContent(Enum):
     """
-    Voting classifier voting technique
+    Drift detection content
     """
-    BEFORE_WEIGHT='before_weight'
-    AFTER_WEIGHT='after_weight'
-    HARD='hard'
-    SOFT='soft'
+    BOOLEAN=auto()
+    PROBABILITY=auto()
+    WEIGHTED_PROBABILITY=auto()
 
-class Classifier(Enum):
+class DriftDetectorCount(Enum):
     """
-    Classifiers to test in experiments
+    Number of drift detectors in the voting classifier
     """
-    VOTING_ENSEMBLE=auto()
-    LEVERAGE_BAGGING=auto()
-    MULTINOMIAL_NB=auto()
-    GAUSSIAN_NB=auto()
-    SGD=auto()
-    NO_CHANGE=auto()
-    MAJORITY_VOTING=auto()
-    HOEFFDING_TREE=auto()
+    ONE_PER_CLASSIFIER=auto()
+    ONE_FOR_ENSEMBLE=auto()

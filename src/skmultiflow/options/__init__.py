@@ -1,1 +1,1 @@
-from .enums import Classifier, Window, Voting, DriftReset
+from .enums import Classifier, Window, Voting, DriftReset, DriftContent, DriftDetectorCount

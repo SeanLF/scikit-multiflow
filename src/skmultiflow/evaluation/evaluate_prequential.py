@@ -144,7 +144,7 @@ class EvaluatePrequential(StreamEvaluator):
                  max_samples=100000,
                  batch_size=1,
                  window_size=1,
-                 window_type=Window(3),
+                 window_type=Window.HYBRID,
                  pretrain_size=200,
                  drift={},
                  g_t_percentage=100,

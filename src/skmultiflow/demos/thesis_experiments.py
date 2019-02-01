@@ -97,12 +97,12 @@ def setup_clf(classifier, classes, window_type, drift, voting):
 # window size = [for SlidingTumbling] ensemble_number_classifiers*batch size []
 def thesis_experiment(
                     experiment_name,
+                    classifier,
+                    voting_type,
+                    window_type,
                     folder='./_analysis_of_results/experiment_results',
-                    window_type=Window(3),
                     window_size=75,
                     batch_size=25,
-                    voting=Voting('before_weight'),
-                    classifier=Classifier(1),
                     drift={},
                     g_t_percentage=100):
     
@@ -128,7 +128,7 @@ def thesis_experiment(
     
     # run all
     for stream, is_file, output_file in streams__output_files:
-        clf=setup_clf(classifier, prepare_for_use(stream, is_file), window_type, drift, voting)
+        clf=setup_clf(classifier, prepare_for_use(stream, is_file), window_type, drift, voting_type)
         if classifier == Classifier.VOTING_ENSEMBLE and window_type == Window.HYBRID:
             size = len(clf.clfs)*batch_size
             if window_size != size:
