@@ -29,7 +29,7 @@
 
 # # Compare different voting ensemble strategies against one another and against single classifiers 
 # # and against other ensemble methods. Compare outcomes
-# thesis_experiment('voting_type_drift/', classifier=Classifier.VOTING_ENSEMBLE, voting=Voting.PROBABILITIY)#, drift=drift) # default strategy
+# thesis_experiment('voting_type_drift/', classifier=Classifier.VOTING_ENSEMBLE, voting=Voting.PROBABILITY)#, drift=drift) # default strategy
 # thesis_experiment('voting_type_drift/W_AVG', classifier=Classifier.VOTING_ENSEMBLE, voting=Voting.W_AVG_PROBABILITY)#, drift={'drift_reset': DriftReset.ALL, 'g_t_%': 80, 'drift_detection_method': 'one_proba', 'drift_use_weighted_probabilities': False})
 # thesis_experiment('voting_type_drift/AVG_W', classifier=Classifier.VOTING_ENSEMBLE, voting=Voting.AVG_W_PROBABILITY)#, drift={'drift_reset': DriftReset.ALL, 'g_t_%': 80, 'drift_detection_method': 'one_proba', 'drift_use_weighted_probabilities': False})
 # # TODO: add drift detection, and drift reset type, and ground truth percentage when best option found

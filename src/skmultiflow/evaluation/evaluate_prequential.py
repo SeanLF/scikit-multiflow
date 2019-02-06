@@ -166,7 +166,7 @@ class EvaluatePrequential(StreamEvaluator):
         self.drift_detection_enabled = bool(drift)
         self.g_t_percentage = g_t_percentage
         try:
-            self.drift_reset = drift['drift_reset']
+            self.drift_reset = drift['reset']
         except Exception:
             pass
         self.max_time = max_time

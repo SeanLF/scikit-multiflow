@@ -50,9 +50,8 @@ def _combination_arrays(array)
 end
 
 def generate_combinations(params, reject_key, &format)
-  comparing, combinations = params.keys, {}
-
-  comparing.reject{|k| k==reject_key}.each_with_index do |to_compare, index|
+  comparing, combinations = params.keys.reject{|k| k==reject_key}, {}
+  comparing.each_with_index do |to_compare, index|
     # generate combinations
     other_keys = (comparing[0,index] + comparing[index+1, comparing.count-1])
     others = other_keys.map{|k| params[k].map{|v| {k => v}}}
@@ -97,17 +96,18 @@ def compute_statistical_significance(params, top_dir, reject_key)
         measure = kappa_t_OR_seconds ? 'kappa_t' : 'seconds'
         kappa_or_seconds_regex = kappa_t_OR_seconds ? /:\s(-?\d\.\d+)/ : /(\d+\.\d+)/
 
-        files_to_search = combinations[key][subkey]
+        files_to_search = combinations[key][subkey].map{|c| c.gsub('||','|*|')}
         results = {} # now grouped by 
         for file_to_search in files_to_search
-          # search for results files
+          # search For results files
+          file_to_search=file_to_search.gsub("|gt|","|100gt|")
           files_found = %x[egrep "#{measure_for_regex}" #{top_dir}/#{file_to_search.gsub('|', '\|')}/*.txt].split("\n")
 
           # group by dataset
-          g = files_found.map{|f| f.split(".txt")}.group_by{|f| f[0][/VOTING_ENSEMBLE\[([a-z]+(0\.\d)?).*\]/i, 1]}
+          g = files_found.map{|f| f.split(".txt")}.group_by{|f| f[0][/VOTING_ENSEMBLE\[([a-z]+(_noise_0\.\d)?).*\]/i, 1]}
           groups = {}
 
-          # get kappa_t or seconds for each experiment
+          # get kappa_t or seconds For each experiment
           if kappa_t_OR_seconds
             g.keys.each{|k| groups[k] = g[k].map{|v| v[1].scan(kappa_or_seconds_regex).flatten[2]}.map &:to_f}
           else
@@ -142,11 +142,11 @@ def compute_statistical_significance(params, top_dir, reject_key)
 end
 
 def part1
-  top_dir = './experiment_results'
+  top_dir = './experiment_results_step1'
   params = {
     window_type: ["SLIDING", "TUMBLING", "HYBRID"],
-    voting_type: ["HARD", "SOFT", "BEFORE_WEIGHT", "AFTER_WEIGHT"],
-    batch_size: [1,5,10,25,50,75,100],
+    voting_type: ["BOOLEAN", "PROBABILITY", "AVG_W_PROBABILITY", "W_AVG_PROBABILITY"],
+    batch_size: [5,10,25,50,75,100],
     ground_truth: [100],
   }
   compute_statistical_significance(params, top_dir, :ground_truth)
@@ -156,11 +156,12 @@ def part2
   top_dir = 'experiment_results_step2_gt'
   params = {
     window_type: ["SLIDING", "HYBRID", "TUMBLING"],
-    voting_type: ["BEFORE_WEIGHT"],
+    voting_type: ["AVG_W_PROBABILITY", "W_AVG_PROBABILITY"],
     batch_size: [25,50,75,100],
     ground_truth: [100,90,80,70,60],
   }
-  compute_statistical_significance(params, top_dir, :bob)
+  compute_statistical_significance(params, top_dir, :none)
 end
 
-part2()
+part1()
+# part2()

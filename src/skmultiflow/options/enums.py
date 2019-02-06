@@ -20,7 +20,7 @@ class Voting(Enum):
     AVG_W_PROBABILITY=auto()
     W_AVG_PROBABILITY=auto()
     BOOLEAN=auto()
-    PROBABILITIY=auto()
+    PROBABILITY=auto()
 
 class Window(Enum):
     """
