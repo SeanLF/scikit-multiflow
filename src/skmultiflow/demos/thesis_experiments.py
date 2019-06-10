@@ -45,6 +45,35 @@ TORNADO_FILES = [
     "/Users/sean/Developer/scikit-multiflow/src/skmultiflow/datasets/tornado/sine1_w_50_n_0.1/sine1_w_50_n_0.1_105.csv",
 ]
 
+ADFA_LD_FILES = [
+    # "/Users/sean/Developer/scikit-multiflow/src/skmultiflow/datasets/adfa-ld/Adduser.csv",
+    "/Users/sean/Developer/scikit-multiflow/src/skmultiflow/datasets/adfa-ld/Adduser_0.csv",
+    "/Users/sean/Developer/scikit-multiflow/src/skmultiflow/datasets/adfa-ld/Adduser_1.csv",
+    "/Users/sean/Developer/scikit-multiflow/src/skmultiflow/datasets/adfa-ld/Adduser_2.csv",
+    "/Users/sean/Developer/scikit-multiflow/src/skmultiflow/datasets/adfa-ld/Adduser_3.csv",
+    "/Users/sean/Developer/scikit-multiflow/src/skmultiflow/datasets/adfa-ld/Adduser_4.csv",
+    # "/Users/sean/Developer/scikit-multiflow/src/skmultiflow/datasets/adfa-ld/Hydra_FTP.csv",
+    # "/Users/sean/Developer/scikit-multiflow/src/skmultiflow/datasets/adfa-ld/Java_Meterpreter.csv",
+    # "/Users/sean/Developer/scikit-multiflow/src/skmultiflow/datasets/adfa-ld/Meterpreter.csv",
+    # "/Users/sean/Developer/scikit-multiflow/src/skmultiflow/datasets/adfa-ld/Web_Shell.csv",
+]
+
+LUXEMBOURG_FILES = [
+    "/Users/sean/Developer/scikit-multiflow/src/skmultiflow/datasets/luxembourg/luxembourg.csv",
+]
+
+POKER_FILES = [
+    "/Users/sean/Developer/scikit-multiflow/src/skmultiflow/datasets/poker/poker.csv",
+]
+
+ELEC_FILES =[
+    "/Users/sean/Developer/scikit-multiflow/src/skmultiflow/data/datasets/elec.csv",
+]
+
+COVTYPE_FILES = [
+    "/Users/sean/Developer/scikit-multiflow/src/skmultiflow/datasets/covtype/covtype.csv",
+]
+
 def demo(stream, output_file, classifier, batch_size, window_size, window_type, drift, g_t_percentage, show_plot=False):
     """ thesis
     This demo demonstrates the use of an ensemble learner.
@@ -66,7 +95,9 @@ def demo(stream, output_file, classifier, batch_size, window_size, window_type, 
         drift=drift,
         g_t_percentage=g_t_percentage,
         output_file=output_file,
-        metrics=['kappa_t'])
+        metrics=['accuracy','kappa','kappa_m']
+        # metrics=['kappa_t']
+    )
     evaluator.evaluate(stream=stream, model=classifier)
 
 def setup_clf(classifier, classes, window_type, drift, voting):
@@ -117,13 +148,34 @@ def thesis_experiment(
     streams__output_files = list()
 
     # for SEA generator
-    for noise_percentage in np.linspace(0.0, 0.2, num=3, dtype=np.dtype('f')):
-        path = '{}/{}/{}[SEA_noise_{}][{}].txt'.format(folder, experiment_name, classifier.name, noise_percentage, experiment_name)
-        streams__output_files.append([SEAGenerator(noise_percentage=noise_percentage, random_state=1), False, os.path.join(path)])
-    # for Tornado files
-    for filepath in TORNADO_FILES:
-        _=re.findall(r'\/(\w+)_w_\d+_n_0.1_(\d+).csv',filepath)[0]
+    # for noise_percentage in np.linspace(0.0, 0.2, num=3, dtype=np.dtype('f')):
+    #     path = '{}/{}/{}[SEA_noise_{}][{}].txt'.format(folder, experiment_name, classifier.name, noise_percentage, experiment_name)
+    #     streams__output_files.append([SEAGenerator(noise_percentage=noise_percentage, random_state=1), False, os.path.join(path)])
+    # # for Tornado files
+    # for filepath in TORNADO_FILES:
+    #     _=re.findall(r'\/(\w+)_w_\d+_n_0.1_(\d+).csv',filepath)[0]
+    #     path = '{}/{}/{}[{}_{}][{}].txt'.format(folder, experiment_name, classifier.name, _[0], _[1], experiment_name)
+    #     streams__output_files.append([FileStream(filepath=filepath), True, os.path.join(path)])
+    # for ADFA-LD files
+    for filepath in ADFA_LD_FILES:
+        _=re.findall(r'\/(\w+)_(\d).csv',filepath)[0]
         path = '{}/{}/{}[{}_{}][{}].txt'.format(folder, experiment_name, classifier.name, _[0], _[1], experiment_name)
+        streams__output_files.append([FileStream(filepath=filepath), True, os.path.join(path)])
+    for filepath in ELEC_FILES:
+        _=re.findall(r'\/(\w+).csv',filepath)[0]
+        path = '{}/{}/{}[{}][{}].txt'.format(folder, experiment_name, classifier.name, _, experiment_name)
+        streams__output_files.append([FileStream(filepath=filepath), True, os.path.join(path)])
+    for filepath in LUXEMBOURG_FILES:
+        _=re.findall(r'\/(\w+).csv',filepath)[0]
+        path = '{}/{}/{}[{}][{}].txt'.format(folder, experiment_name, classifier.name, _, experiment_name)
+        streams__output_files.append([FileStream(filepath=filepath), True, os.path.join(path)])
+    for filepath in POKER_FILES:
+        _=re.findall(r'\/(\w+).csv',filepath)[0]
+        path = '{}/{}/{}[{}][{}].txt'.format(folder, experiment_name, classifier.name, _, experiment_name)
+        streams__output_files.append([FileStream(filepath=filepath), True, os.path.join(path)])
+    for filepath in COVTYPE_FILES:
+        _=re.findall(r'\/(\w+).csv',filepath)[0]
+        path = '{}/{}/{}[{}][{}].txt'.format(folder, experiment_name, classifier.name, _, experiment_name)
         streams__output_files.append([FileStream(filepath=filepath), True, os.path.join(path)])
     
     # run all

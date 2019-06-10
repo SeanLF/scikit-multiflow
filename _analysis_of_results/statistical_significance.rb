@@ -67,10 +67,28 @@ def generate_combinations(params, reject_key, &format)
         
         # experiment key
         a = []
-        if (h.keys.include?(:window_type) and :window_type != reject_key) then a << h[:window_type] end
-        if (h.keys.include?(:voting_type) and :voting_type != reject_key) then a << h[:voting_type] end
-        if (h.keys.include?(:ground_truth) and :ground_truth != reject_key) then a << "#{h[:ground_truth]}gt" end
-        if (h.keys.include?(:batch_size) and :batch_size != reject_key) then a << "#{h[:batch_size]}ws" end
+        if (h.keys.include?(:window_type) and :window_type != reject_key)
+          a << h[:window_type]
+        end
+        if (h.keys.include?(:voting_type) and :voting_type != reject_key)
+          a << h[:voting_type]
+        end
+        if (h.keys.include?(:ground_truth) and :ground_truth != reject_key)
+          a << "#{h[:ground_truth]}gt"
+        end
+        if (h.keys.include?(:batch_size) and :batch_size != reject_key)
+          a << "#{h[:batch_size]}ws"
+        end
+        if (h.keys.include?(:drift_reset_type) and :drift_reset_type != reject_key)
+          a << "#{h[:drift_reset_type]}"
+        end
+        if (h.keys.include?(:drift_detector_count) and :drift_detector_count != reject_key)
+          a << "#{h[:drift_detector_count]}"
+        end
+        if (h.keys.include?(:drift_content) and :drift_content != reject_key)
+          a << "#{h[:drift_content]}"
+        end
+
         a = a.join('|')
         
         # to_compare_together
@@ -87,21 +105,25 @@ end
 def compute_statistical_significance(params, top_dir, reject_key)
   top_analysis_folder = top_dir + '/analysis'
     
-  combinations = generate_combinations(params, reject_key) {|c| "#{c[:window_type]}|#{c[:voting_type]}|#{c[:ground_truth]}gt|#{c[:batch_size]}ws"}
+  combinations = generate_combinations(params, reject_key) {|c| "#{c[:window_type]}|#{c[:voting_type]}|#{c[:ground_truth]}gt|#{c[:batch_size]}ws|#{c[:drift_reset_type]}|#{c[:drift_detector_count]}|#{c[:drift_content]}"}
+  to_be_JSONed = []
   for key in combinations.keys
-    for subkey in combinations[key].keys
+    for subkey in combinations[key].keys.reject{|k| k[/W\_AVG\_PROBABILITY\|.*\|.*\|ONE\_PER\_CLASSIFIER\|WEIGHTED\_PROBABILITY/]}.reject{|k| k[/(^|\|)PROBABILITY\|.*\|.*\|.*\|WEIGHTED\_PROBABILITY/]}
       for kappa_t_OR_seconds in [true, false]
         experiment_name = "#{key.to_s} - #{subkey}" # example: batch_size - SLIDING|HARD means we're comparing all batch sizes over SLIDING windows and HARD voting and 100 ground truth
         measure_for_regex = kappa_t_OR_seconds ? "ClassificationMeasurements:" : "Evaluation time:"
         measure = kappa_t_OR_seconds ? 'kappa_t' : 'seconds'
         kappa_or_seconds_regex = kappa_t_OR_seconds ? /:\s(-?\d\.\d+)/ : /(\d+\.\d+)/
-
-        files_to_search = combinations[key][subkey].map{|c| c.gsub('||','|*|')}
+        
+        files_to_search = combinations[key][subkey].map{|c| c.gsub('||','|*|')} #TODO: check
         results = {} # now grouped by 
         for file_to_search in files_to_search
           # search For results files
-          file_to_search=file_to_search.gsub("|gt|","|100gt|")
-          files_found = %x[egrep "#{measure_for_regex}" #{top_dir}/#{file_to_search.gsub('|', '\|')}/*.txt].split("\n")
+          file_to_search=file_to_search.gsub("|gt|","|#{params[:ground_truth].first}gt|")
+          files_found = %x[egrep "#{measure_for_regex}" #{top_dir}/*/#{file_to_search.gsub('|', '\|')}/*.txt].split("\n")
+          if files_found.empty?
+            break
+          end
 
           # group by dataset
           g = files_found.map{|f| f.split(".txt")}.group_by{|f| f[0][/VOTING_ENSEMBLE\[([a-z]+(_noise_0\.\d)?).*\]/i, 1]}
@@ -115,10 +137,16 @@ def compute_statistical_significance(params, top_dir, reject_key)
           end
 
           # average over datasets
-          groups.keys.each {|k| groups[k] = groups[k].sum / groups[k].count}
+          if files_to_search.count > 2
+            groups.keys.each {|k| groups[k] = groups[k].sum / groups[k].count}
+          end
           results[file_to_search.gsub('|', ' ')] = groups
         end
-        
+
+        if results.empty?
+          next
+        end
+
         # save to CSV
         data, header = [], results[results.keys.first].keys.prepend('params \ dataset')
         results.keys.each {|key| data << results[key].values.prepend(key) }
@@ -134,11 +162,14 @@ def compute_statistical_significance(params, top_dir, reject_key)
         end
 
         # run Python program to evaluate statistical significance using numpy and external libraries
-        params = {key: key, subkey: subkey, measure: measure, dir: dir}
-        system "python3 statistical_significance.py '#{JSON.fast_generate(results)}' '#{JSON.fast_generate(params)}'"
+        if results.values.map(&:empty?).flatten.any?(false)
+          py_params = {key: key, subkey: subkey, measure: measure, dir: dir}
+          to_be_JSONed << {params: py_params, results: results}
+        end
       end
     end
   end
+  File.write("#{top_analysis_folder}/python.json", to_be_JSONed.to_json)
 end
 
 def part1
@@ -163,5 +194,21 @@ def part2
   compute_statistical_significance(params, top_dir, :none)
 end
 
-part1()
+def part3(ground_truth, reject_key)
+  top_dir = 'experiment_results_step3_drift'
+  params = {
+    window_type: ["SLIDING", "HYBRID"],
+    voting_type: ["AVG_W_PROBABILITY", "W_AVG_PROBABILITY", "PROBABILITY", "BOOLEAN"],
+    batch_size: [25,75,100],
+    ground_truth: ground_truth,
+    drift_reset_type: ['ALL', 'PARTIAL', 'BLIND_RANDOM'],
+    drift_content: ['PROBABILITY', 'WEIGHTED_PROBABILITY', 'BOOLEAN'],
+    drift_detector_count: ['ONE_PER_CLASSIFIER', 'ONE_FOR_ENSEMBLE'],
+  }
+  compute_statistical_significance(params, top_dir, reject_key)
+end
+
+# part1()
 # part2()
+# part3([100,90,80,70,60], :none)
+part4()

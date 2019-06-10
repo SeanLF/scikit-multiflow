@@ -247,7 +247,7 @@ class EnsembleVoteClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
 					# count classifiers who voted winning class
                     pr = [np.bincount(x)[maj[i]] for i,x in enumerate(predictions)]
                 else:
-                    weighted = {Voting.AVG_W_PROBABILITY: averaged_weighted_probabilities, Voting.W_AVG_PROBABILITY: weighted_averaged_probabilities }[self.voting]
+                    weighted = {Voting.AVG_W_PROBABILITY: averaged_weighted_probabilities, Voting.W_AVG_PROBABILITY: weighted_averaged_probabilities, Voting.PROBABILITY: None, Voting.BOOLEAN: None }[self.voting]
                     content = {DriftContent.PROBABILITY: averaged_probabilities, DriftContent.WEIGHTED_PROBABILITY: weighted}[self.drift_content]
                     # takes the average probability of the winning class (for unweighted)
                     # takes the average weighted probability of the winning class (for weighted)
@@ -262,7 +262,7 @@ class EnsembleVoteClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
                     if self.drift_content == DriftContent.BOOLEAN:
                         # did classifier vote winning vote ?
                         pr = [maj[i] == predictions[i][index] for i in range(len(predictions))]
-                    else: # note that since AVG_W doesn't calculate weights for each probability, it cannot be used with ONE PER CLASSIFIER
+                    else: # note that since W_AVG doesn't calculate weights for each probability, it cannot be used with ONE PER CLASSIFIER
                         content = {DriftContent.PROBABILITY: probabilities, DriftContent.WEIGHTED_PROBABILITY: weighted_probabilities}[self.drift_content]
                         # probability of winning vote
                         pr = [content[index][i][maj[i]] for i in range(len(content[index]))]

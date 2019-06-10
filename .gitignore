@@ -61,3 +61,5 @@ coverage/
 
 _analysis_of_results/*/
 .byebug*
+
+*.csv
