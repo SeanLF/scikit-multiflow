@@ -21,22 +21,6 @@ I then modified the voting classifier to use a different voting scheme (by avera
 - When drifts are detected, all models are dropped, and rebuilt using the last NUM tuples.
 - When drifts are detected, a subset of models are dropped, and rebuilt using the last NUM tuples. (current implementation: each classifier in the voting ensemble has a 70% chance of being reset)
 
-
-## Experiments to perform
-- Examine how sliding windows perform against tumbling windows and against sliding tumbling windows
-- The size of the window or batch (w) will have an impact on the results; we probably need some experiments about that.
-- Compare different voting ensemble strategies against one another and against single classifiers and against other ensemble methods. Compare outcomes
-- See how the modified concept drift detector performs with/without sliding tumbling windows, and/or when playing with the ensemble classifier reset logic, and finding the right balance of ground truth that can be omitted versus using predicted values as the ground truth
-- Evaluate the performance, stream velocity, accuracy against other methods
-- It is good to compare to blind adaptation, i.e. a simple model reset at every x instances.
-- Compare to state of the art.
-
-## Questions
-- Is using someone elses structure/organization for the litterature review considered plagiarism?
-
-## Reminders for writing
-- Sarah also uses some voting to decide on whether there is a warning/drift, but it is not clearly stated in her work. It would be good to formalize this in your thesis (Equations).
-
 ## Future work
 - Replace poorly performing classifiers (find good metric)
 - Modify window size in real time
